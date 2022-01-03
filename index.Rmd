@@ -1,0 +1,84 @@
+---
+title: "EDA"
+author: "Chris Gaskell"
+date: "03/01/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = F)
+```
+
+```{r libs, include=FALSE}
+library(tidyverse)
+```
+
+```{r input, include=FALSE}
+# NULLs to NAs.
+dat <- read_csv("input/data.csv", na = "NULL") %>% suppressWarnings()
+
+dat <- dat %>% mutate(Location = as.factor(Location),
+                      `sub-group` = as.factor(`sub-group`),
+                      sex = as.factor(sex),
+                      assessed_at = lubridate::dmy(dat$assessed_at)) %>% 
+                as.data.frame() %>% 
+                janitor::clean_names()
+
+# Drop individual berri items
+dat <- dat %>% select(-c(18:191))
+
+dat <- dat %>% relocate(any_of(c("person_id", "assessed_at",
+                               "location", "sub_group", "sex", "birth_year",
+                               "total_berri", "total_behaviour", "total_emotional",
+                               "total_relationships", "total_risk", "total_indicators"
+                               )))
+```
+
+```{r wide-data, include=FALSE}
+# Code for isolating people with a certain number of observations
+      # dat %>% group_by(person_id) %>% filter(n() >= 1L) %>% ungroup()
+
+# Extract the first and last observations
+dat.wide <- dat %>% arrange(person_id, assessed_at) %>%
+                group_by(person_id) %>%
+                slice(c(1,n()))
+
+# Change to wide format
+dat.wide <-   dat.wide %>% group_by(person_id) %>%
+                  summarise(total_berri = toString(total_berri),
+                            total_behaviour = toString(total_behaviour),
+                            total_emotional = toString(total_emotional),
+                            total_relationships = toString(total_relationships),
+                            total_risk = toString(total_risk),
+                            total_indicators = toString(total_indicators)) %>%
+        separate(total_berri, into = paste0("total_berri", 1:2)) %>% 
+        separate(total_behaviour, into = paste0("total_behaviour", 1:2)) %>% 
+        separate(total_emotional, into = paste0("total_emotional", 1:2)) %>% 
+        separate(total_relationships, into = paste0("total_relationships", 1:2)) %>% 
+        separate(total_risk, into = paste0("total_risk", 1:2)) %>% 
+        separate(total_indicators, into = paste0("total_indicators", 1:2)) %>% 
+                  mutate(total_berri1 = as.numeric(total_berri1),
+                         total_berri2 = as.numeric(total_berri2),
+                         total_behaviour1 = as.numeric(total_behaviour1),
+                         total_behaviour2 = as.numeric(total_behaviour2),
+                         total_emotional1 = as.numeric(total_emotional1),
+                         total_emotional2 = as.numeric(total_emotional2),
+                         total_relationships1 = as.numeric(total_relationships1),
+                         total_relationships2 = as.numeric(total_relationships2),
+                         total_risk1 = as.numeric(total_risk1),
+                         total_risk2 = as.numeric(total_risk2),
+                         total_indicators1 = as.numeric(total_indicators1),
+                         total_indicators2 = as.numeric(total_indicators2),
+                         )
+
+# Isolate and merge predictors from original data.
+dat.wide.vars <- dat %>% group_by(person_id) %>%
+                  top_n(assessed_at, n = 1) %>% ungroup()
+dat.wide <- inner_join(dat.wide, dat.wide.vars, by = "person_id") %>% 
+                  select(-"total_berri", "total_behaviour", "total_emotional",
+                               "total_relationships", "total_risk", "total_indicators")
+dat.wide <- dat.wide %>% relocate(any_of(c("person_id", "assessed_at",
+                               "location", "sub_group", "sex", "birth_year")))
+remove(dat.wide.vars)
+```
+
